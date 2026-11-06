@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мой переводчик</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f5f7fb;font-family:Arial;color:#202124}
+header{background:#fff;padding:22px 18px;font-size:25px;font-weight:bold;color:#4285f4}
+main{padding:15px;max-width:600px;margin:auto}
+.languages{display:flex;align-items:center;gap:8px;margin-bottom:15px}
+select{flex:1;padding:13px 7px;border:1px solid #ddd;border-radius:12px;background:white;font-size:14px}
+.swap{border:0;background:#e8f0fe;color:#4285f4;border-radius:50%;width:42px;height:42px;font-size:22px}
+.card{background:white;border-radius:18px;padding:16px;margin-bottom:14px;box-shadow:0 2px 10px #00000008}
+textarea{width:100%;height:140px;border:0;outline:0;resize:vertical;font-size:19px;font-family:Arial}
+.result{min-height:110px;font-size:21px;color:#202124;white-space:pre-wrap}
+.actions{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+button{cursor:pointer}
+.small{border:0;background:#eef3fc;padding:11px 14px;border-radius:12px;color:#2765c7;font-size:17px}
+.translate{width:100%;padding:16px;border:0;border-radius:14px;background:#4285f4;color:white;font-size:18px;font-weight:bold;margin-bottom:15px}
+h3{font-size:15px;color:#777;margin:0 0 12px}
+.history{background:white;padding:13px;border-radius:12px;margin:8px 0;font-size:14px}
+#status{text-align:center;color:#777;font-size:13px;margin:8px}
+</style>
+</head>
+<body>
+<header>🌍 Мой переводчик</header>
+<main>
+<div class="languages">
+<select id="from">
+<option value="auto">Определить язык</option>
+<option value="ru">Русский</option>
+<option value="en">Английский</option>
+<option value="uz">Узбекский</option>
+<option value="kk">Казахский</option>
+<option value="tr">Турецкий</option>
+<option value="fr">Французский</option>
+<option value="de">Немецкий</option>
+<option value="es">Испанский</option>
+<option value="zh">Китайский</option>
+</select>
+<button class="swap" onclick="swap()">⇄</button>
+<select id="to">
+<option value="en">Английский</option>
+<option value="ru">Русский</option>
+<option value="uz">Узбекский</option>
+<option value="kk">Казахский</option>
+<option value="tr">Турецкий</option>
+<option value="fr">Французский</option>
+<option value="de">Немецкий</option>
+<option value="es">Испанский</option>
+<option value="zh">Китайский</option>
+</select>
+</div>
+
+<div class="card">
+<h3>Введите текст</h3>
+<textarea id="input" placeholder="Введите текст для перевода..."></textarea>
+<div class="actions">
+<button class="small" onclick="listen()">🎤</button>
+<button class="small" onclick="speak('input')">🔊</button>
+<button class="small" onclick="clearText()">✕</button>
+</div>
+</div>
+
+<button class="translate" onclick="translateText()">Перевести →</button>
+<div class="card">
+<h3>Перевод</h3>
+<div class="result" id="result">Здесь появится перевод</div>
+<div class="actions">
+<button class="small" onclick="speak('result')">🔊</button>
+<button class="small" onclick="copyResult()">📋 Копировать</button>
+</div>
+</div>
+
+<div id="status"></div>
+<h3>🕘 История переводов</h3>
+<div id="history"></div>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+
+function swap(){
+let a=$('from').value,b=$('to').value;
+if(a==='auto')return;
+$('from').value=b;
+$('to').value=a;
+let x=$('input').value;
+$('input').value=$('result').innerText;
+$('result').innerText=x||'Здесь появится перевод';
+}
+
+function clearText(){
+$('input').value='';
+$('result').innerText='Здесь появится перевод';
+$('status').innerText='';
+}
+
+async function translateText(){
+let text=$('input').value.trim();
+let from=$('from').value;
+let to=$('to').value;
+if(!text){$('status').innerText='Введите текст';return}
+if(from===to){$('status').innerText='Выберите разные языки';return}
+$('status').innerText='Переводим...';
+try{
+let url='https://api.mymemory.translated.net/get?q='+encodeURIComponent(text)+'&langpair='+from+'|'+to;
+let response=await fetch(url);
+let data=await response.json();
+if(data.responseStatus!==200)throw Error('Ошибка перевода');
+let translated=data.responseData.translatedText;
+$('result').innerText=translated;
+$('status').innerText='Готово! ✓';
+saveHistory(text,translated);
+}catch(e){
+$('status').innerText='Не удалось перевести. Проверь интернет и попробуй ещё раз.';
+}
+}
+
+function speak(id){
+let text=$(id).value||$(id).innerText;
+if(!text)return;
+speechSynthesis.cancel();
+let msg=new SpeechSynthesisUtterance(text);
+msg.lang=$('to').value==='ru'?'ru-RU':$('to').value==='en'?'en-US':$('to').value;
+speechSynthesis.speak(msg);
+}
+
+function listen(){
+let SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+if(!SR){$('status').innerText='Голосовой ввод не поддерживается этим браузером';return}
+let rec=new SR();
+rec.lang=$('from').value==='auto'?'ru-RU':$('from').value;
+rec.onresult=e=>{
+$('input').value=e.results[0][0].transcript;
+};
+rec.onerror=()=>{$('status').innerText='Не удалось распознать речь'};
+rec.start();
+$('status').innerText='🎤 Слушаю...';
+}
+
+function copyResult(){
+let text=$('result').innerText;
+if(!text||text==='Здесь появится перевод')return;
+navigator.clipboard.writeText(text)
+.then(()=>$('status').innerText='Скопировано! ✓')
+.catch(()=>$('status').innerText='Не удалось скопировать');
+}
+
+function saveHistory(a,b){
+let h=JSON.parse(localStorage.getItem('history')||'[]');
+h.unshift({a,b});
+localStorage.setItem('history',JSON.stringify(h.slice(0,10)));
+showHistory();
+}
+
+function showHistory(){
+let h=JSON.parse(localStorage.getItem('history')||'[]');
+$('history').innerHTML='';
+h.forEach(item=>{
+let div=document.createElement('div');
+div.className='history';
+div.textContent=item.a+' → '+item.b;
+$('history').appendChild(div);
+});
+}
+showHistory();
+</script>
+</body>
+</html>
+HTML
+cd ~/downloads && python -m http.server 8080 --bind 0.0.0.0
+pkg update && pkg upgrade -y
+pkg install git wget curl openjdk-17 -y
+pkg install git wget curl openjdk-17 -y
+
